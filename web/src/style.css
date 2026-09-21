@@ -83,6 +83,10 @@ video {
   pointer-events: none;
 }
 
+.empty-state[hidden] {
+  display: none;
+}
+
 .empty-state span { color: #7d8794; }
 
 .controls {
