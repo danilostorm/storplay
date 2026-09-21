@@ -22,8 +22,8 @@ jobs:
         with:
           go-version: "1.23"
           cache-dependency-path: host/go.mod
-      - name: Download dependencies
-        run: go mod download
+      - name: Resolve dependencies
+        run: go mod tidy
       - name: Test
         run: go test ./...
       - name: Build host
