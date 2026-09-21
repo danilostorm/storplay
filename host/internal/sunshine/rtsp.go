@@ -14,16 +14,21 @@ import (
 )
 
 type RTSPProbe struct {
-	State       string    `json:"state"`
-	SessionURL  string    `json:"sessionUrl,omitempty"`
-	SessionID   string    `json:"sessionId,omitempty"`
-	AudioPort   int       `json:"audioPort,omitempty"`
-	VideoPort   int       `json:"videoPort,omitempty"`
-	ControlPort int       `json:"controlPort,omitempty"`
-	Codecs      []string  `json:"codecs,omitempty"`
-	FeatureFlags string   `json:"featureFlags,omitempty"`
-	ProbedAt    time.Time `json:"probedAt,omitempty"`
-	Error       string    `json:"error,omitempty"`
+	State            string    `json:"state"`
+	SessionURL       string    `json:"sessionUrl,omitempty"`
+	SessionID        string    `json:"sessionId,omitempty"`
+	AudioPort        int       `json:"audioPort,omitempty"`
+	VideoPort        int       `json:"videoPort,omitempty"`
+	ControlPort      int       `json:"controlPort,omitempty"`
+	Codecs           []string  `json:"codecs,omitempty"`
+	FeatureFlags     string    `json:"featureFlags,omitempty"`
+	PingPayloadReady bool      `json:"pingPayloadReady"`
+	ProbedAt         time.Time `json:"probedAt,omitempty"`
+	Error            string    `json:"error,omitempty"`
+
+	audioPingPayload   string `json:"-"`
+	videoPingPayload   string `json:"-"`
+	controlConnectData string `json:"-"`
 }
 
 type rtspResponse struct {
@@ -123,6 +128,7 @@ func (c *Client) ProbeRTSP(ctx context.Context) (RTSPProbe, error) {
 	}
 	probe.SessionID = sessionID
 	probe.AudioPort = parseServerPort(audio.Headers["transport"])
+	probe.audioPingPayload = strings.TrimSpace(audio.Headers["x-ss-ping-payload"])
 
 	sessionHeaders := map[string]string{
 		"Session":           sessionID,
@@ -138,6 +144,7 @@ func (c *Client) ProbeRTSP(ctx context.Context) (RTSPProbe, error) {
 		return probeFailure(probe, "SETUP video", fmt.Errorf("RTSP status %d %s", video.StatusCode, video.Status))
 	}
 	probe.VideoPort = parseServerPort(video.Headers["transport"])
+	probe.videoPingPayload = strings.TrimSpace(video.Headers["x-ss-ping-payload"])
 
 	control, err := rtsp.request(ctx, "SETUP", "streamid=control/13/0", sessionHeaders, nil)
 	if err != nil {
@@ -147,6 +154,8 @@ func (c *Client) ProbeRTSP(ctx context.Context) (RTSPProbe, error) {
 		return probeFailure(probe, "SETUP control", fmt.Errorf("RTSP status %d %s", control.StatusCode, control.Status))
 	}
 	probe.ControlPort = parseServerPort(control.Headers["transport"])
+	probe.controlConnectData = strings.TrimSpace(control.Headers["x-ss-connect-data"])
+	probe.PingPayloadReady = len(probe.audioPingPayload) == 16 && len(probe.videoPingPayload) == 16
 
 	// Sunshine normally advertises well-known defaults if a Transport response
 	// omits server_port. Preserve those as diagnostic fallbacks.
