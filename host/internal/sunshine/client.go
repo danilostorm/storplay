@@ -51,6 +51,9 @@ type Client struct {
 
 	pairMu    sync.Mutex
 	pairState PairingStatus
+
+	sessionMu     sync.Mutex
+	activeSession *LaunchSession
 }
 
 func New(baseURL, uniqueID string) *Client {
@@ -136,6 +139,14 @@ func (c *Client) Probe(ctx context.Context) (ServerInfo, error) {
 	if parsed.StatusCode != 200 {
 		return ServerInfo{}, fmt.Errorf("Sunshine serverinfo status_code=%d", parsed.StatusCode)
 	}
+
+	c.pairMu.Lock()
+	if parsed.PairStatus == 1 && c.pairState.State != "waiting_for_pin" && c.pairState.State != "pairing" {
+		c.pairState = PairingStatus{State: "paired"}
+	} else if parsed.PairStatus == 0 && c.pairState.State == "paired" {
+		c.pairState = PairingStatus{State: "unpaired"}
+	}
+	c.pairMu.Unlock()
 
 	return ServerInfo{
 		StatusCode:        parsed.StatusCode,
