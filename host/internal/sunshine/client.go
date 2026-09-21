@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -45,7 +46,11 @@ type serverInfoXML struct {
 type Client struct {
 	BaseURL  string
 	UniqueID string
+	Identity *Identity
 	HTTP     *http.Client
+
+	pairMu    sync.Mutex
+	pairState PairingStatus
 }
 
 func New(baseURL, uniqueID string) *Client {
@@ -55,7 +60,14 @@ func New(baseURL, uniqueID string) *Client {
 		HTTP: &http.Client{
 			Timeout: 1200 * time.Millisecond,
 		},
+		pairState: PairingStatus{State: "unpaired"},
 	}
+}
+
+func NewWithIdentity(baseURL string, identity *Identity) *Client {
+	client := New(baseURL, identity.UniqueID)
+	client.Identity = identity
+	return client
 }
 
 func NewUniqueID() string {
