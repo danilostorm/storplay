@@ -3,6 +3,7 @@ package signaling
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -16,15 +17,17 @@ import (
 	"github.com/gorilla/websocket"
 
 	inputsink "github.com/danilostorm/storplay/host/internal/input"
+	storagemedia "github.com/danilostorm/storplay/host/internal/media"
 	"github.com/danilostorm/storplay/host/internal/session"
 	"github.com/danilostorm/storplay/host/internal/sunshine"
 )
 
 type Server struct {
-	Addr     string
-	StunURL  string
-	WebDir   string
-	Sunshine *sunshine.Client
+	Addr        string
+	StunURL     string
+	WebDir      string
+	Sunshine    *sunshine.Client
+	TestPattern bool
 }
 
 func (s Server) Handler() http.Handler {
@@ -38,12 +41,13 @@ func (s Server) Handler() http.Handler {
 	mux.HandleFunc("/api/info", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"name":                "StorPlay Host",
-			"version":             "0.1.0-dev",
-			"signaling":           "/ws/session",
-			"mediaReady":          false,
-			"inputReady":          true,
-			"sunshineConfigured":  s.Sunshine != nil,
+			"name":               "StorPlay Host",
+			"version":            "0.1.0-dev",
+			"signaling":          "/ws/session",
+			"mediaReady":         true,
+			"inputReady":         true,
+			"sunshineConfigured": s.Sunshine != nil,
+			"testPattern":        s.TestPattern,
 		})
 	})
 
@@ -100,6 +104,26 @@ func (s Server) Handler() http.Handler {
 		}
 		defer current.Close()
 
+		if s.TestPattern {
+			pattern, err := storagemedia.NewDiagnosticPattern()
+			if err != nil {
+				log.Printf("media: create diagnostic source: %v", err)
+			} else {
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				defer pattern.Close()
+
+				current.Media().OnKeyframeRequest = pattern.RequestKeyframe
+				go func() {
+					if err := pattern.Start(ctx, current.Media()); err != nil &&
+						!errors.Is(err, context.Canceled) {
+						log.Printf("media: diagnostic source ended: %v", err)
+					}
+				}()
+				log.Printf("media: diagnostic H264 pattern enabled")
+			}
+		}
+
 		if err := current.Start(); err != nil {
 			log.Printf("signaling: session ended with error: %v", err)
 		}
@@ -124,6 +148,9 @@ func (s Server) ListenAndServe() error {
 		log.Printf("WebRTC ICE: host candidates only (LAN mode)")
 	} else {
 		log.Printf("WebRTC ICE: STUN %s", s.StunURL)
+	}
+	if s.TestPattern {
+		log.Printf("media: diagnostic test pattern mode is ON")
 	}
 	return http.ListenAndServe(s.Addr, s.Handler())
 }
