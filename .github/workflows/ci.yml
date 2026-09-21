@@ -89,6 +89,7 @@ jobs:
           mkdir -p package/web
           cp -R web/dist/. package/web/
           cp packaging/windows/Start-StorPlay.bat package/Start-StorPlay.bat
+          cp packaging/windows/Start-StorPlay-Diagnostic.bat package/Start-StorPlay-Diagnostic.bat
           cp packaging/windows/README.txt package/README.txt
 
       - name: Upload Windows package
