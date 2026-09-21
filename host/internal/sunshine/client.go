@@ -54,6 +54,9 @@ type Client struct {
 
 	sessionMu     sync.Mutex
 	activeSession *LaunchSession
+
+	rtspMu    sync.Mutex
+	rtspProbe *RTSPProbe
 }
 
 func New(baseURL, uniqueID string) *Client {
