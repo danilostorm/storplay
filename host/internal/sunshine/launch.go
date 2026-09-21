@@ -72,10 +72,9 @@ func (c *Client) Launch(ctx context.Context, cfg LaunchConfig) (LaunchSession, e
 	if err != nil {
 		return LaunchSession{}, err
 	}
-	if info.PairStatus != 1 {
-		return LaunchSession{}, fmt.Errorf("StorPlay is not paired with Sunshine")
-	}
-
+	// Do not gate launch on the legacy plaintext PairStatus field. The /launch
+	// request itself uses StorPlay's client certificate over mTLS, so Sunshine
+	// remains the authority that accepts or rejects the paired identity.
 	rikey := make([]byte, 16)
 	if _, err := rand.Read(rikey); err != nil {
 		return LaunchSession{}, fmt.Errorf("generate GameStream key: %w", err)
@@ -170,6 +169,7 @@ func (c *Client) Launch(ctx context.Context, cfg LaunchConfig) (LaunchSession, e
 	c.sessionMu.Lock()
 	c.activeSession = &session
 	c.sessionMu.Unlock()
+	c.setPairState(PairingStatus{State: "paired"})
 
 	return session, nil
 }
