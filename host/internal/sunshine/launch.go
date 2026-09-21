@@ -169,6 +169,11 @@ func (c *Client) Launch(ctx context.Context, cfg LaunchConfig) (LaunchSession, e
 	c.sessionMu.Lock()
 	c.activeSession = &session
 	c.sessionMu.Unlock()
+
+	c.rtspMu.Lock()
+	c.rtspProbe = nil
+	c.rtspMu.Unlock()
+
 	c.setPairState(PairingStatus{State: "paired"})
 
 	return session, nil
@@ -237,6 +242,10 @@ func (c *Client) Cancel(ctx context.Context) error {
 	c.sessionMu.Lock()
 	c.activeSession = nil
 	c.sessionMu.Unlock()
+
+	c.rtspMu.Lock()
+	c.rtspProbe = nil
+	c.rtspMu.Unlock()
 	return nil
 }
 
