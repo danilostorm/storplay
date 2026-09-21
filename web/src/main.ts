@@ -10,6 +10,7 @@ interface SunshineInfoResponse {
     appVersion: string;
     pairStatus: number;
     state: string;
+    currentGame: number;
   };
   pairing?: {
     state: PairingState;
@@ -23,6 +24,16 @@ interface SunshineApp {
   id: number;
   title: string;
   hdrSupported: boolean;
+}
+
+interface LaunchSession {
+  appId: number;
+  sessionUrl: string;
+  width: number;
+  height: number;
+  fps: number;
+  hdr: boolean;
+  startedAt: string;
 }
 
 const video = document.querySelector<HTMLVideoElement>('#player')!;
@@ -42,6 +53,12 @@ const pairError = document.querySelector<HTMLElement>('#pair-error')!;
 const appsPanel = document.querySelector<HTMLElement>('#apps-panel')!;
 const appsList = document.querySelector<HTMLElement>('#apps-list')!;
 
+const launchPanel = document.querySelector<HTMLElement>('#launch-panel')!;
+const launchTitle = document.querySelector<HTMLElement>('#launch-title')!;
+const launchSummary = document.querySelector<HTMLElement>('#launch-summary')!;
+const launchURL = document.querySelector<HTMLElement>('#launch-url')!;
+const launchCancel = document.querySelector<HTMLButtonElement>('#launch-cancel')!;
+
 const rtt = document.querySelector<HTMLElement>('#rtt')!;
 const bitrate = document.querySelector<HTMLElement>('#bitrate')!;
 const fps = document.querySelector<HTMLElement>('#fps')!;
@@ -57,6 +74,7 @@ signalingInput.value = `${signalScheme}://${signalHost}/ws/session`;
 let session: WebRtcSession | null = null;
 let inputController: InputController | null = null;
 let pairingTimer: number | null = null;
+let launching = false;
 
 function apiURL(path: string): string {
   if (window.location.port === '48120') return path;
@@ -82,6 +100,7 @@ async function refreshSunshine(): Promise<void> {
 
     if (state === 'paired') {
       await loadApps();
+      await loadActiveSession();
     }
   } catch (error) {
     sunshineSummary.textContent = `Unable to query Sunshine: ${String(error)}`;
@@ -187,16 +206,107 @@ async function loadApps(): Promise<void> {
 
     appsList.replaceChildren();
     for (const app of data.apps) {
-      const item = document.createElement('span');
-      item.className = 'app-chip';
-      item.textContent = app.hdrSupported ? `${app.title} · HDR` : app.title;
-      item.dataset.appId = String(app.id);
-      appsList.appendChild(item);
+      const button = document.createElement('button');
+      button.className = 'app-chip app-launch';
+      button.type = 'button';
+      button.textContent = app.hdrSupported ? `${app.title} · HDR` : app.title;
+      button.title = `Launch ${app.title}`;
+      button.disabled = launching;
+      button.addEventListener('click', () => {
+        void launchApp(app, button);
+      });
+      appsList.appendChild(button);
     }
     appsPanel.hidden = false;
   } catch (error) {
     pairError.textContent = String(error);
     pairError.hidden = false;
+  }
+}
+
+async function launchApp(app: SunshineApp, button: HTMLButtonElement): Promise<void> {
+  if (launching) return;
+  launching = true;
+  pairError.hidden = true;
+
+  const oldLabel = button.textContent;
+  button.textContent = `Launching ${app.title}…`;
+  for (const el of appsList.querySelectorAll<HTMLButtonElement>('button')) {
+    el.disabled = true;
+  }
+
+  try {
+    const response = await fetch(apiURL('/api/sunshine/launch'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        appId: app.id,
+        width: 1920,
+        height: 1080,
+        fps: 60,
+        bitrateKbps: 20000,
+        hdr: false,
+        playHostAudio: false,
+      }),
+    });
+
+    const data = (await response.json()) as { session?: LaunchSession; error?: string };
+    if (!response.ok || !data.session) {
+      throw new Error(data.error ?? 'Sunshine launch failed');
+    }
+
+    renderLaunchSession(data.session, app.title);
+    await refreshSunshine();
+  } catch (error) {
+    pairError.textContent = String(error);
+    pairError.hidden = false;
+  } finally {
+    launching = false;
+    button.textContent = oldLabel;
+    for (const el of appsList.querySelectorAll<HTMLButtonElement>('button')) {
+      el.disabled = false;
+    }
+  }
+}
+
+async function loadActiveSession(): Promise<void> {
+  try {
+    const response = await fetch(apiURL('/api/sunshine/session'));
+    const data = (await response.json()) as { session: LaunchSession | null };
+    if (!response.ok || !data.session) {
+      if (response.ok) launchPanel.hidden = true;
+      return;
+    }
+    renderLaunchSession(data.session);
+  } catch {
+    // Session display is diagnostic-only; Sunshine info remains the source of truth.
+  }
+}
+
+function renderLaunchSession(current: LaunchSession, appTitle?: string): void {
+  launchTitle.textContent = appTitle ? `${appTitle} launched` : `App ${current.appId} launched`;
+  launchSummary.textContent =
+    `${current.width}×${current.height} @ ${current.fps} FPS · GameStream session created successfully.`;
+  launchURL.textContent = current.sessionUrl;
+  launchPanel.hidden = false;
+}
+
+async function cancelLaunch(): Promise<void> {
+  launchCancel.disabled = true;
+  pairError.hidden = true;
+  try {
+    const response = await fetch(apiURL('/api/sunshine/cancel'), { method: 'POST' });
+    const data = (await response.json()) as { ok?: boolean; error?: string };
+    if (!response.ok || !data.ok) {
+      throw new Error(data.error ?? 'Unable to stop Sunshine session');
+    }
+    launchPanel.hidden = true;
+    await refreshSunshine();
+  } catch (error) {
+    pairError.textContent = String(error);
+    pairError.hidden = false;
+  } finally {
+    launchCancel.disabled = false;
   }
 }
 
@@ -206,6 +316,10 @@ sunshineRefresh.addEventListener('click', () => {
 
 sunshinePair.addEventListener('click', () => {
   void startPairing();
+});
+
+launchCancel.addEventListener('click', () => {
+  void cancelLaunch();
 });
 
 connectButton.addEventListener('click', async () => {
