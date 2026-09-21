@@ -138,13 +138,49 @@ h2 { margin: 4px 0 6px; font-size: 20px; }
 
 .launch-panel {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
 }
 
+.launch-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.launch-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.rtsp-panel {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid #2d3440;
+  border-radius: 10px;
+  background: #0c1015;
+}
+
+.rtsp-panel[hidden],
 .launch-panel[hidden] {
   display: none;
+}
+
+.rtsp-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.rtsp-chip {
+  padding: 6px 9px;
+  border: 1px solid #303745;
+  border-radius: 999px;
+  background: #11161d;
+  color: #dce3ea;
+  font-size: 12px;
 }
 
 .player-shell {
@@ -240,6 +276,7 @@ button:disabled {
   .sunshine-actions { justify-content: flex-start; }
   .apps-panel, .launch-panel { grid-column: auto; }
   .launch-panel { align-items: flex-start; flex-direction: column; }
+  .launch-actions { width: 100%; }
   .controls { grid-template-columns: 1fr 1fr; }
   .controls label { grid-column: 1 / -1; }
   .player-shell { min-height: 240px; }
