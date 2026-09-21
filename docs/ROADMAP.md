@@ -19,7 +19,7 @@
 - [x] pointer-lock mouse input
 - [x] Gamepad API input
 - [x] WebRTC statistics overlay
-- [ ] validate against the first StorPlay host build on a real machine
+- [x] validate against the first StorPlay host build on a real machine
 - [ ] browser compatibility pass (Chrome/Edge/Firefox)
 
 ## M2 — Local host + signaling
@@ -44,7 +44,9 @@
 - [x] configured Sunshine serverinfo probe
 - [x] parse Sunshine identity/state/ports
 - [ ] LAN Sunshine discovery
-- [ ] pairing/session bootstrap
+- [x] pairing with persistent StorPlay client identity
+- [x] authenticated app list over Sunshine mTLS
+- [ ] launch/session bootstrap validation
 - [ ] launch desktop/application
 - [ ] receive H.264 access units from GameStream
 - [ ] receive Opus packets from GameStream
