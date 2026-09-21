@@ -49,6 +49,21 @@ interface RTSPProbe {
   error?: string;
 }
 
+interface MediaProbe {
+  state: 'starting' | 'receiving' | 'packets_received' | 'error';
+  audioPackets: number;
+  videoPackets: number;
+  audioBytes: number;
+  videoBytes: number;
+  firstAudioPacketBytes?: number;
+  firstVideoPacketBytes?: number;
+  audioLocalPort?: number;
+  videoLocalPort?: number;
+  startedAt?: string;
+  finishedAt?: string;
+  error?: string;
+}
+
 const video = document.querySelector<HTMLVideoElement>('#player')!;
 const status = document.querySelector<HTMLElement>('#status')!;
 const connectButton = document.querySelector<HTMLButtonElement>('#connect')!;
@@ -75,6 +90,11 @@ const rtspProbeButton = document.querySelector<HTMLButtonElement>('#rtsp-probe')
 const rtspPanel = document.querySelector<HTMLElement>('#rtsp-panel')!;
 const rtspSummary = document.querySelector<HTMLElement>('#rtsp-summary')!;
 const rtspDetails = document.querySelector<HTMLElement>('#rtsp-details')!;
+
+const mediaProbeButton = document.querySelector<HTMLButtonElement>('#media-probe')!;
+const mediaProbePanel = document.querySelector<HTMLElement>('#media-probe-panel')!;
+const mediaProbeSummary = document.querySelector<HTMLElement>('#media-probe-summary')!;
+const mediaProbeDetails = document.querySelector<HTMLElement>('#media-probe-details')!;
 
 const rtt = document.querySelector<HTMLElement>('#rtt')!;
 const bitrate = document.querySelector<HTMLElement>('#bitrate')!;
@@ -315,6 +335,7 @@ async function loadActiveSession(): Promise<void> {
     }
     renderLaunchSession(data.session, sunshineAppTitles.get(data.session.appId));
     await loadRTSPStatus();
+    await loadMediaStatus();
   } catch {
     // Session display is diagnostic-only; Sunshine info remains the source of truth.
   }
@@ -367,6 +388,45 @@ async function loadRTSPStatus(): Promise<void> {
   }
 }
 
+async function probeMedia(): Promise<void> {
+  mediaProbeButton.disabled = true;
+  mediaProbeButton.textContent = 'Probing media…';
+  pairError.hidden = true;
+
+  try {
+    const response = await fetch(apiURL('/api/sunshine/media/probe'), { method: 'POST' });
+    const data = (await response.json()) as { media?: MediaProbe; error?: string };
+    if (!data.media) {
+      throw new Error(data.error ?? 'Media UDP probe failed');
+    }
+
+    renderMediaProbe(data.media);
+    if (!response.ok) {
+      throw new Error(data.error ?? data.media.error ?? 'Media UDP probe failed');
+    }
+  } catch (error) {
+    pairError.textContent = String(error);
+    pairError.hidden = false;
+  } finally {
+    mediaProbeButton.disabled = false;
+    mediaProbeButton.textContent = 'Probe Media UDP';
+  }
+}
+
+async function loadMediaStatus(): Promise<void> {
+  try {
+    const response = await fetch(apiURL('/api/sunshine/media/status'));
+    const data = (await response.json()) as { media: MediaProbe | null };
+    if (response.ok && data.media) {
+      renderMediaProbe(data.media);
+    } else {
+      mediaProbePanel.hidden = true;
+    }
+  } catch {
+    mediaProbePanel.hidden = true;
+  }
+}
+
 function renderRTSP(rtsp: RTSPProbe): void {
   rtspPanel.hidden = false;
   rtspSummary.textContent =
@@ -392,6 +452,41 @@ function renderRTSP(rtsp: RTSPProbe): void {
   }
 }
 
+function renderMediaProbe(media: MediaProbe): void {
+  mediaProbePanel.hidden = false;
+
+  if (media.state === 'packets_received') {
+    mediaProbeSummary.textContent = 'Real GameStream UDP packets arrived from Sunshine.';
+  } else if (media.state === 'error') {
+    mediaProbeSummary.textContent = media.error ?? 'UDP media diagnostic failed.';
+  } else {
+    mediaProbeSummary.textContent = media.state;
+  }
+
+  const details = [
+    `Audio: ${media.audioPackets} packets / ${formatBytes(media.audioBytes)}`,
+    `Video: ${media.videoPackets} packets / ${formatBytes(media.videoBytes)}`,
+    media.firstAudioPacketBytes ? `First audio packet: ${media.firstAudioPacketBytes} B` : null,
+    media.firstVideoPacketBytes ? `First video packet: ${media.firstVideoPacketBytes} B` : null,
+    media.audioLocalPort ? `Local audio UDP: ${media.audioLocalPort}` : null,
+    media.videoLocalPort ? `Local video UDP: ${media.videoLocalPort}` : null,
+  ].filter((value): value is string => Boolean(value));
+
+  mediaProbeDetails.replaceChildren();
+  for (const detail of details) {
+    const chip = document.createElement('span');
+    chip.className = 'rtsp-chip';
+    chip.textContent = detail;
+    mediaProbeDetails.appendChild(chip);
+  }
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MiB`;
+}
+
 async function cancelLaunch(): Promise<void> {
   launchCancel.disabled = true;
   pairError.hidden = true;
@@ -403,6 +498,7 @@ async function cancelLaunch(): Promise<void> {
     }
     launchPanel.hidden = true;
     rtspPanel.hidden = true;
+    mediaProbePanel.hidden = true;
     await refreshSunshine();
   } catch (error) {
     pairError.textContent = String(error);
@@ -426,6 +522,10 @@ launchCancel.addEventListener('click', () => {
 
 rtspProbeButton.addEventListener('click', () => {
   void probeRTSP();
+});
+
+mediaProbeButton.addEventListener('click', () => {
+  void probeMedia();
 });
 
 connectButton.addEventListener('click', async () => {
