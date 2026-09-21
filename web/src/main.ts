@@ -14,6 +14,9 @@ const bitrate = document.querySelector<HTMLElement>('#bitrate')!;
 const fps = document.querySelector<HTMLElement>('#fps')!;
 const loss = document.querySelector<HTMLElement>('#loss')!;
 
+const signalScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+signalingInput.value = `${signalScheme}://${window.location.hostname || 'localhost'}:47990/ws/session`;
+
 let session: WebRtcSession | null = null;
 let inputController: InputController | null = null;
 
@@ -41,7 +44,14 @@ connectButton.addEventListener('click', async () => {
     emptyState.hidden = connected;
     fullscreenButton.disabled = !connected;
     mouseLockButton.disabled = !connected;
-    connectButton.textContent = connected ? 'Disconnect' : 'Connecting…';
+
+    if (state === 'connected') {
+      connectButton.textContent = 'Disconnect';
+    } else if (state === 'connecting') {
+      connectButton.textContent = 'Connecting…';
+    } else {
+      connectButton.textContent = 'Connect';
+    }
   };
 
   nextSession.onStats = (stats) => {
