@@ -1,12 +1,23 @@
 StorPlay Windows Development Package
 
+PORTS
+-----
+Sunshine keeps its normal ports:
+- 47989: GameStream HTTP
+- 47990: Sunshine Web UI
+
+StorPlay uses:
+- 48120: StorPlay HTTP/WebSocket UI
+
 NORMAL MODE
 -----------
 1. Extract the whole ZIP to a folder.
-2. Make sure Sunshine is running on this PC if you want /api/sunshine/info to detect it.
-3. Double-click Start-StorPlay.bat.
-4. Your browser opens http://localhost:47990.
-5. Click Connect.
+2. Start Sunshine first.
+3. Verify Sunshine itself is running.
+4. Double-click Start-StorPlay.bat.
+5. Your browser opens http://localhost:48120.
+6. Open http://localhost:48120/api/sunshine/info to verify detection.
+7. Click Connect.
 
 H264 DIAGNOSTIC MODE
 --------------------
@@ -27,9 +38,9 @@ Current milestone:
 - H.264 diagnostic video can be pushed through the real media relay.
 - The input DataChannel works.
 - Keyboard/mouse/gamepad messages reach the host.
-- Sunshine /serverinfo detection works.
+- Sunshine /serverinfo detection works when Sunshine is running.
 - Actual Sunshine GameStream video/audio ingestion is the next integration.
 
 Security note:
 This development build is LAN-first and currently uses HTTP/WebSocket.
-Do not expose port 47990 directly to the public Internet.
+Do not expose port 48120 directly to the public Internet.
