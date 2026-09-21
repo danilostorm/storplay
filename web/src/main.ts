@@ -36,6 +36,19 @@ interface LaunchSession {
   startedAt: string;
 }
 
+interface RTSPProbe {
+  state: 'probing' | 'setup_complete' | 'error';
+  sessionUrl?: string;
+  sessionId?: string;
+  audioPort?: number;
+  videoPort?: number;
+  controlPort?: number;
+  codecs?: string[];
+  featureFlags?: string;
+  probedAt?: string;
+  error?: string;
+}
+
 const video = document.querySelector<HTMLVideoElement>('#player')!;
 const status = document.querySelector<HTMLElement>('#status')!;
 const connectButton = document.querySelector<HTMLButtonElement>('#connect')!;
@@ -58,6 +71,10 @@ const launchTitle = document.querySelector<HTMLElement>('#launch-title')!;
 const launchSummary = document.querySelector<HTMLElement>('#launch-summary')!;
 const launchURL = document.querySelector<HTMLElement>('#launch-url')!;
 const launchCancel = document.querySelector<HTMLButtonElement>('#launch-cancel')!;
+const rtspProbeButton = document.querySelector<HTMLButtonElement>('#rtsp-probe')!;
+const rtspPanel = document.querySelector<HTMLElement>('#rtsp-panel')!;
+const rtspSummary = document.querySelector<HTMLElement>('#rtsp-summary')!;
+const rtspDetails = document.querySelector<HTMLElement>('#rtsp-details')!;
 
 const rtt = document.querySelector<HTMLElement>('#rtt')!;
 const bitrate = document.querySelector<HTMLElement>('#bitrate')!;
@@ -75,6 +92,7 @@ let session: WebRtcSession | null = null;
 let inputController: InputController | null = null;
 let pairingTimer: number | null = null;
 let launching = false;
+const sunshineAppTitles = new Map<number, string>();
 
 function apiURL(path: string): string {
   if (window.location.port === '48120') return path;
@@ -215,7 +233,9 @@ async function loadApps(quiet = false): Promise<boolean> {
     }
 
     appsList.replaceChildren();
+    sunshineAppTitles.clear();
     for (const app of data.apps) {
+      sunshineAppTitles.set(app.id, app.title);
       const button = document.createElement('button');
       button.className = 'app-chip app-launch';
       button.type = 'button';
@@ -271,6 +291,7 @@ async function launchApp(app: SunshineApp, button: HTMLButtonElement): Promise<v
     }
 
     renderLaunchSession(data.session, app.title);
+    await probeRTSP();
     await refreshSunshine();
   } catch (error) {
     pairError.textContent = String(error);
@@ -292,18 +313,83 @@ async function loadActiveSession(): Promise<void> {
       if (response.ok) launchPanel.hidden = true;
       return;
     }
-    renderLaunchSession(data.session);
+    renderLaunchSession(data.session, sunshineAppTitles.get(data.session.appId));
+    await loadRTSPStatus();
   } catch {
     // Session display is diagnostic-only; Sunshine info remains the source of truth.
   }
 }
 
 function renderLaunchSession(current: LaunchSession, appTitle?: string): void {
-  launchTitle.textContent = appTitle ? `${appTitle} launched` : `App ${current.appId} launched`;
+  const friendlyTitle = appTitle ?? sunshineAppTitles.get(current.appId);
+  launchTitle.textContent = friendlyTitle ? `${friendlyTitle} launched` : `GameStream app ${current.appId} launched`;
   launchSummary.textContent =
     `${current.width}×${current.height} @ ${current.fps} FPS · GameStream session created successfully.`;
   launchURL.textContent = current.sessionUrl;
   launchPanel.hidden = false;
+}
+
+async function probeRTSP(): Promise<void> {
+  rtspProbeButton.disabled = true;
+  rtspProbeButton.textContent = 'Probing RTSP…';
+  pairError.hidden = true;
+
+  try {
+    const response = await fetch(apiURL('/api/sunshine/rtsp/probe'), { method: 'POST' });
+    const data = (await response.json()) as { rtsp?: RTSPProbe; error?: string };
+    if (!response.ok || !data.rtsp) {
+      throw new Error(data.error ?? data.rtsp?.error ?? 'RTSP probe failed');
+    }
+    renderRTSP(data.rtsp);
+  } catch (error) {
+    rtspPanel.hidden = false;
+    rtspSummary.textContent = 'RTSP handshake failed.';
+    rtspDetails.replaceChildren();
+    pairError.textContent = String(error);
+    pairError.hidden = false;
+  } finally {
+    rtspProbeButton.disabled = false;
+    rtspProbeButton.textContent = 'Probe RTSP';
+  }
+}
+
+async function loadRTSPStatus(): Promise<void> {
+  try {
+    const response = await fetch(apiURL('/api/sunshine/rtsp/status'));
+    const data = (await response.json()) as { rtsp: RTSPProbe | null };
+    if (response.ok && data.rtsp) {
+      renderRTSP(data.rtsp);
+    } else {
+      rtspPanel.hidden = true;
+    }
+  } catch {
+    rtspPanel.hidden = true;
+  }
+}
+
+function renderRTSP(rtsp: RTSPProbe): void {
+  rtspPanel.hidden = false;
+  rtspSummary.textContent =
+    rtsp.state === 'setup_complete'
+      ? 'OPTIONS, DESCRIBE and SETUP completed successfully.'
+      : rtsp.error ?? rtsp.state;
+
+  const details = [
+    rtsp.sessionId ? `Session: ${rtsp.sessionId}` : null,
+    rtsp.audioPort ? `Audio UDP: ${rtsp.audioPort}` : null,
+    rtsp.videoPort ? `Video UDP: ${rtsp.videoPort}` : null,
+    rtsp.controlPort ? `Control: ${rtsp.controlPort}` : null,
+    rtsp.codecs?.length ? `Codecs: ${rtsp.codecs.join(', ')}` : null,
+    rtsp.featureFlags ? `Sunshine flags: ${rtsp.featureFlags}` : null,
+  ].filter((value): value is string => Boolean(value));
+
+  rtspDetails.replaceChildren();
+  for (const detail of details) {
+    const chip = document.createElement('span');
+    chip.className = 'rtsp-chip';
+    chip.textContent = detail;
+    rtspDetails.appendChild(chip);
+  }
 }
 
 async function cancelLaunch(): Promise<void> {
@@ -316,6 +402,7 @@ async function cancelLaunch(): Promise<void> {
       throw new Error(data.error ?? 'Unable to stop Sunshine session');
     }
     launchPanel.hidden = true;
+    rtspPanel.hidden = true;
     await refreshSunshine();
   } catch (error) {
     pairError.textContent = String(error);
@@ -335,6 +422,10 @@ sunshinePair.addEventListener('click', () => {
 
 launchCancel.addEventListener('click', () => {
   void cancelLaunch();
+});
+
+rtspProbeButton.addEventListener('click', () => {
+  void probeRTSP();
 });
 
 connectButton.addEventListener('click', async () => {
