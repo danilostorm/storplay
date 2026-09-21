@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -84,6 +85,9 @@ func (s Server) Handler() http.Handler {
 
 	mux.HandleFunc("/api/sunshine/pair/start", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		if !requireLocalAdmin(w, r) {
+			return
+		}
 		if r.Method != http.MethodPost {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			_ = json.NewEncoder(w).Encode(map[string]any{"error": "POST required"})
@@ -131,6 +135,80 @@ func (s Server) Handler() http.Handler {
 			return
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"apps": apps})
+	})
+
+	mux.HandleFunc("/api/sunshine/session", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if s.Sunshine == nil {
+			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "Sunshine adapter is disabled"})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"session": s.Sunshine.ActiveSession()})
+	})
+
+	mux.HandleFunc("/api/sunshine/launch", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if !requireLocalAdmin(w, r) {
+			return
+		}
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "POST required"})
+			return
+		}
+		if s.Sunshine == nil {
+			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "Sunshine adapter is disabled"})
+			return
+		}
+
+		var cfg sunshine.LaunchConfig
+		decoder := json.NewDecoder(io.LimitReader(r.Body, 4096))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&cfg); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "invalid launch request: " + err.Error()})
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+		defer cancel()
+		launched, err := s.Sunshine.Launch(ctx, cfg)
+		if err != nil {
+			w.WriteHeader(http.StatusBadGateway)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": err.Error()})
+			return
+		}
+		log.Printf("sunshine: launched app=%d session=%s", launched.AppID, launched.SessionURL)
+		_ = json.NewEncoder(w).Encode(map[string]any{"session": launched})
+	})
+
+	mux.HandleFunc("/api/sunshine/cancel", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if !requireLocalAdmin(w, r) {
+			return
+		}
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "POST required"})
+			return
+		}
+		if s.Sunshine == nil {
+			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "Sunshine adapter is disabled"})
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(r.Context(), 7*time.Second)
+		defer cancel()
+		if err := s.Sunshine.Cancel(ctx); err != nil {
+			w.WriteHeader(http.StatusBadGateway)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": err.Error()})
+			return
+		}
+		log.Printf("sunshine: session cancelled")
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
 	})
 
 	upgrader := websocket.Upgrader{
@@ -205,6 +283,22 @@ func (s Server) ListenAndServe() error {
 		log.Printf("media: diagnostic test pattern mode is ON")
 	}
 	return http.ListenAndServe(s.Addr, s.Handler())
+}
+
+func requireLocalAdmin(w http.ResponseWriter, r *http.Request) bool {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+	ip := net.ParseIP(strings.Trim(host, "[]"))
+	if ip == nil || !ip.IsLoopback() {
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"error": "this development admin action is restricted to localhost",
+		})
+		return false
+	}
+	return true
 }
 
 func withHeaders(next http.Handler) http.Handler {
