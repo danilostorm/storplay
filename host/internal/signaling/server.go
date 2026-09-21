@@ -1,6 +1,7 @@
 package signaling
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -16,12 +17,14 @@ import (
 
 	inputsink "github.com/danilostorm/storplay/host/internal/input"
 	"github.com/danilostorm/storplay/host/internal/session"
+	"github.com/danilostorm/storplay/host/internal/sunshine"
 )
 
 type Server struct {
-	Addr    string
-	StunURL string
-	WebDir  string
+	Addr     string
+	StunURL  string
+	WebDir   string
+	Sunshine *sunshine.Client
 }
 
 func (s Server) Handler() http.Handler {
@@ -35,11 +38,42 @@ func (s Server) Handler() http.Handler {
 	mux.HandleFunc("/api/info", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"name":       "StorPlay Host",
-			"version":    "0.1.0-dev",
-			"signaling":  "/ws/session",
-			"mediaReady": false,
-			"inputReady": true,
+			"name":                "StorPlay Host",
+			"version":             "0.1.0-dev",
+			"signaling":           "/ws/session",
+			"mediaReady":          false,
+			"inputReady":          true,
+			"sunshineConfigured":  s.Sunshine != nil,
+		})
+	})
+
+	mux.HandleFunc("/api/sunshine/info", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if s.Sunshine == nil {
+			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"available": false,
+				"error":     "Sunshine adapter is disabled",
+			})
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(r.Context(), 1500*time.Millisecond)
+		defer cancel()
+
+		info, err := s.Sunshine.Probe(ctx)
+		if err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"available": false,
+				"error":     err.Error(),
+			})
+			return
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"available": true,
+			"server":    info,
 		})
 	})
 
