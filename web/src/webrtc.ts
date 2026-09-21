@@ -36,10 +36,19 @@ export class WebRtcSession {
     const pc = new RTCPeerConnection();
     this.pc = pc;
 
-    this.input = pc.createDataChannel('input', {
-      ordered: false,
-      maxRetransmits: 0,
-    });
+    pc.ondatachannel = (event) => {
+      if (event.channel.label !== 'input') {
+        event.channel.close();
+        return;
+      }
+
+      this.input?.close();
+      this.input = event.channel;
+
+      this.input.onclose = () => {
+        if (this.input === event.channel) this.input = null;
+      };
+    };
 
     pc.ontrack = (event) => {
       const [stream] = event.streams;
