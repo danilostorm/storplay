@@ -1,0 +1,32 @@
+# Build
+build/
+out/
+dist/
+cmake-build-*/
+
+# Node
+node_modules/
+.npm/
+.pnpm-store/
+
+# IDE
+.vscode/
+.idea/
+*.user
+*.suo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets / local config
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+
+# Logs
+*.log
+logs/
