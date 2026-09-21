@@ -7,7 +7,7 @@
 - [x] Separate host, media and control planes
 - [x] Document Sunshine-backed MVP
 - [ ] Choose final project license after dependency decisions
-- [ ] Set up CI
+- [x] Set up CI
 
 ## M1 — Browser shell
 
@@ -19,15 +19,19 @@
 - [x] pointer-lock mouse input
 - [x] Gamepad API input
 - [x] WebRTC statistics overlay
-- [ ] validate against the first StorPlay host implementation
+- [ ] validate against the first StorPlay host build on a real machine
 - [ ] browser compatibility pass (Chrome/Edge/Firefox)
 
 ## M2 — Local host + signaling
 
-- [ ] StorPlay host service for Windows
+- [x] StorPlay host executable foundation (Go + Pion WebRTC)
+- [x] local HTTP health/info API
 - [ ] local HTTPS control API
-- [ ] WebRTC offer/answer signaling
-- [ ] ICE candidate exchange
+- [x] WebRTC offer/answer signaling
+- [x] ICE candidate exchange
+- [x] host-created low-latency input DataChannel
+- [ ] Windows keyboard/mouse input injection
+- [ ] Windows virtual gamepad input
 - [ ] LAN session discovery
 - [ ] authenticated admin UI
 
