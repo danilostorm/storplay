@@ -57,6 +57,9 @@ type Client struct {
 
 	rtspMu    sync.Mutex
 	rtspProbe *RTSPProbe
+
+	mediaMu    sync.Mutex
+	mediaProbe *MediaProbe
 }
 
 func New(baseURL, uniqueID string) *Client {
