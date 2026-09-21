@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b0d10" />
+    <title>StorPlay</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header>
+        <div>
+          <p class="eyebrow">StorPlay · early development</p>
+          <h1>Browser game streaming</h1>
+        </div>
+        <span id="status" class="status">Disconnected</span>
+      </header>
+
+      <section class="player-shell">
+        <video id="player" autoplay playsinline></video>
+        <div id="empty-state" class="empty-state">
+          <strong>No active stream</strong>
+          <span>Connect this page to a StorPlay host to start playing.</span>
+        </div>
+      </section>
+
+      <section class="controls">
+        <label>
+          Signaling URL
+          <input id="signaling-url" value="wss://localhost:47990/ws/session" />
+        </label>
+        <button id="connect">Connect</button>
+        <button id="fullscreen" disabled>Fullscreen</button>
+        <button id="mouse-lock" disabled>Gaming mouse</button>
+      </section>
+
+      <section class="stats">
+        <span>RTT <strong id="rtt">—</strong></span>
+        <span>Bitrate <strong id="bitrate">—</strong></span>
+        <span>FPS <strong id="fps">—</strong></span>
+        <span>Packets lost <strong id="loss">—</strong></span>
+      </section>
+    </main>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
