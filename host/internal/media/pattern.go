@@ -6,9 +6,8 @@ import (
 	"errors"
 	"io"
 	"log"
+	"strings"
 	"time"
-
-	"github.com/pion/webrtc/v4"
 )
 
 // A tiny 320x180 baseline-H.264 IDR access unit generated specifically for the
@@ -35,17 +34,24 @@ func (p *DiagnosticPattern) Start(ctx context.Context, sink Sink) error {
 		return errors.New("diagnostic pattern sink is nil")
 	}
 
-	// Five keyframes per second is intentionally wasteful but tiny at 320x180.
-	// It makes joining/reloading deterministic without requiring a PLI handshake.
 	const frameDuration = 200 * time.Millisecond
 	ticker := time.NewTicker(frameDuration)
 	defer ticker.Stop()
 
 	send := func() {
 		err := sink.PushVideo(p.frame, frameDuration)
-		if err == nil || errors.Is(err, io.ErrClosedPipe) || errors.Is(err, webrtc.ErrNoBind) {
+		if err == nil || errors.Is(err, io.ErrClosedPipe) {
 			return
 		}
+
+		// TrackLocalStaticSample returns an internal "not bound" error until a
+		// remote browser has negotiated/attached the track. That type is not
+		// exported by every Pion version, so treat it as the expected pre-bind
+		// state by message and keep the diagnostic source quiet.
+		if strings.Contains(strings.ToLower(err.Error()), "not bound") {
+			return
+		}
+
 		log.Printf("media: diagnostic frame: %v", err)
 	}
 
