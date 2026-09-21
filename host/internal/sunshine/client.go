@@ -143,8 +143,6 @@ func (c *Client) Probe(ctx context.Context) (ServerInfo, error) {
 	c.pairMu.Lock()
 	if parsed.PairStatus == 1 && c.pairState.State != "waiting_for_pin" && c.pairState.State != "pairing" {
 		c.pairState = PairingStatus{State: "paired"}
-	} else if parsed.PairStatus == 0 && c.pairState.State == "paired" {
-		c.pairState = PairingStatus{State: "unpaired"}
 	}
 	c.pairMu.Unlock()
 
