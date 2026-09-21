@@ -11,6 +11,7 @@ import (
 	"github.com/pion/webrtc/v4"
 
 	inputsink "github.com/danilostorm/storplay/host/internal/input"
+	storagemedia "github.com/danilostorm/storplay/host/internal/media"
 	"github.com/danilostorm/storplay/host/internal/protocol"
 )
 
@@ -18,6 +19,7 @@ type Session struct {
 	conn  *websocket.Conn
 	pc    *webrtc.PeerConnection
 	input inputsink.Sink
+	media *storagemedia.Relay
 
 	writeMu sync.Mutex
 	once    sync.Once
@@ -34,7 +36,23 @@ func New(conn *websocket.Conn, sink inputsink.Sink, stunURL string) (*Session, e
 		return nil, fmt.Errorf("create peer connection: %w", err)
 	}
 
-	s := &Session{conn: conn, pc: pc, input: sink}
+	relay, err := storagemedia.New()
+	if err != nil {
+		_ = pc.Close()
+		return nil, fmt.Errorf("create media relay: %w", err)
+	}
+	if err := relay.AddToPeerConnection(pc); err != nil {
+		_ = pc.Close()
+		return nil, fmt.Errorf("attach media relay: %w", err)
+	}
+
+	s := &Session{conn: conn, pc: pc, input: sink, media: relay}
+
+	relay.OnKeyframeRequest = func() {
+		// This hook will be replaced by the active Sunshine/native source.
+		// Keeping it live now proves RTCP PLI/FIR reaches the source boundary.
+		log.Printf("media: browser requested a keyframe")
+	}
 
 	pc.OnICECandidate(func(candidate *webrtc.ICECandidate) {
 		if candidate == nil {
@@ -65,6 +83,7 @@ func New(conn *websocket.Conn, sink inputsink.Sink, stunURL string) (*Session, e
 		MaxRetransmits: &maxRetransmits,
 	})
 	if err != nil {
+		relay.Close()
 		_ = pc.Close()
 		return nil, fmt.Errorf("create input data channel: %w", err)
 	}
@@ -83,6 +102,12 @@ func New(conn *websocket.Conn, sink inputsink.Sink, stunURL string) (*Session, e
 	})
 
 	return s, nil
+}
+
+// Media returns the session's encoded-media sink. A source adapter should push
+// H.264 and Opus into it after the WebRTC session has been created.
+func (s *Session) Media() *storagemedia.Relay {
+	return s.media
 }
 
 func (s *Session) Start() error {
@@ -140,6 +165,7 @@ func (s *Session) Start() error {
 func (s *Session) Close() {
 	s.once.Do(func() {
 		_ = s.input.ReleaseAll()
+		s.media.Close()
 		_ = s.pc.Close()
 		_ = s.conn.Close()
 	})
