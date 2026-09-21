@@ -15,7 +15,11 @@ const fps = document.querySelector<HTMLElement>('#fps')!;
 const loss = document.querySelector<HTMLElement>('#loss')!;
 
 const signalScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-signalingInput.value = `${signalScheme}://${window.location.hostname || 'localhost'}:47990/ws/session`;
+const signalHost =
+  window.location.port === '48120'
+    ? window.location.host
+    : `${window.location.hostname || 'localhost'}:48120`;
+signalingInput.value = `${signalScheme}://${signalHost}/ws/session`;
 
 let session: WebRtcSession | null = null;
 let inputController: InputController | null = null;
@@ -31,6 +35,7 @@ connectButton.addEventListener('click', async () => {
     connectButton.textContent = 'Connect';
     fullscreenButton.disabled = true;
     mouseLockButton.disabled = true;
+    emptyState.hidden = false;
     return;
   }
 
@@ -81,6 +86,7 @@ connectButton.addEventListener('click', async () => {
     await nextSession.close();
     session = null;
     connectButton.textContent = 'Connect';
+    emptyState.hidden = false;
   }
 });
 
