@@ -32,17 +32,28 @@
           <button id="sunshine-refresh">Refresh</button>
           <button id="sunshine-pair" disabled>Pair</button>
         </div>
+
         <div id="apps-panel" class="apps-panel" hidden>
           <strong>Apps exposed by Sunshine</strong>
+          <p class="muted small">Click an app to ask Sunshine to create a real GameStream session.</p>
           <div id="apps-list" class="apps-list"></div>
+        </div>
+
+        <div id="launch-panel" class="launch-panel" hidden>
+          <div>
+            <strong id="launch-title">GameStream session</strong>
+            <p id="launch-summary" class="muted small"></p>
+            <code id="launch-url"></code>
+          </div>
+          <button id="launch-cancel">Stop Sunshine session</button>
         </div>
       </section>
 
       <section class="player-shell">
         <video id="player" autoplay playsinline></video>
         <div id="empty-state" class="empty-state">
-          <strong>No active stream</strong>
-          <span>Connect this page to a StorPlay host to start playing.</span>
+          <strong>No active media source</strong>
+          <span>The browser WebRTC link is ready. Sunshine RTSP ingestion is the next milestone.</span>
         </div>
       </section>
 
