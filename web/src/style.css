@@ -20,6 +20,13 @@ button, input { font: inherit; }
 
 a { color: #b8c3ff; }
 
+code {
+  display: block;
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+  color: #b8c3ff;
+}
+
 .shell {
   width: min(1180px, calc(100% - 32px));
   margin: 0 auto;
@@ -48,6 +55,11 @@ h2 { margin: 4px 0 6px; font-size: 20px; }
 .muted {
   margin: 0;
   color: #9ca6b3;
+}
+
+.small {
+  margin-top: 5px;
+  font-size: 13px;
 }
 
 .status {
@@ -95,7 +107,8 @@ h2 { margin: 4px 0 6px; font-size: 20px; }
   color: #ffb2b2;
 }
 
-.apps-panel {
+.apps-panel,
+.launch-panel {
   grid-column: 1 / -1;
   padding-top: 12px;
   border-top: 1px solid #252a32;
@@ -109,12 +122,29 @@ h2 { margin: 4px 0 6px; font-size: 20px; }
 }
 
 .app-chip {
-  padding: 7px 10px;
+  min-height: 34px;
+  padding: 7px 11px;
   border: 1px solid #303745;
   border-radius: 999px;
   background: #0e1217;
   color: #dfe5ec;
   font-size: 13px;
+}
+
+.app-launch:hover:not(:disabled) {
+  border-color: #6677ff;
+  background: #161c31;
+}
+
+.launch-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.launch-panel[hidden] {
+  display: none;
 }
 
 .player-shell {
@@ -208,7 +238,8 @@ button:disabled {
 @media (max-width: 820px) {
   .sunshine-card { grid-template-columns: 1fr; }
   .sunshine-actions { justify-content: flex-start; }
-  .apps-panel { grid-column: auto; }
+  .apps-panel, .launch-panel { grid-column: auto; }
+  .launch-panel { align-items: flex-start; flex-direction: column; }
   .controls { grid-template-columns: 1fr 1fr; }
   .controls label { grid-column: 1 / -1; }
   .player-shell { min-height: 240px; }
