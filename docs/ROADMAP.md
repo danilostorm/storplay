@@ -11,14 +11,16 @@
 
 ## M1 — Browser shell
 
-- [ ] TypeScript web client
-- [ ] WebRTC PeerConnection lifecycle
-- [ ] DataChannel connection
-- [ ] fullscreen player
-- [ ] keyboard input capture
-- [ ] pointer-lock mouse input
-- [ ] Gamepad API input
-- [ ] WebRTC statistics overlay
+- [x] TypeScript web client
+- [x] WebRTC PeerConnection lifecycle
+- [x] DataChannel connection
+- [x] fullscreen player
+- [x] keyboard input capture
+- [x] pointer-lock mouse input
+- [x] Gamepad API input
+- [x] WebRTC statistics overlay
+- [ ] validate against the first StorPlay host implementation
+- [ ] browser compatibility pass (Chrome/Edge/Firefox)
 
 ## M2 — Local host + signaling
 
