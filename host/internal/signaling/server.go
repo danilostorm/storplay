@@ -147,6 +147,46 @@ func (s Server) Handler() http.Handler {
 		_ = json.NewEncoder(w).Encode(map[string]any{"session": s.Sunshine.ActiveSession()})
 	})
 
+	mux.HandleFunc("/api/sunshine/rtsp/status", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if s.Sunshine == nil {
+			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "Sunshine adapter is disabled"})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"rtsp": s.Sunshine.RTSPStatus()})
+	})
+
+	mux.HandleFunc("/api/sunshine/rtsp/probe", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if !requireLocalAdmin(w, r) {
+			return
+		}
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "POST required"})
+			return
+		}
+		if s.Sunshine == nil {
+			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "Sunshine adapter is disabled"})
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+		defer cancel()
+		probe, err := s.Sunshine.ProbeRTSP(ctx)
+		if err != nil {
+			w.WriteHeader(http.StatusBadGateway)
+			_ = json.NewEncoder(w).Encode(map[string]any{"rtsp": probe, "error": err.Error()})
+			return
+		}
+
+		log.Printf("sunshine: RTSP setup complete session=%s audio=%d video=%d control=%d",
+			probe.SessionID, probe.AudioPort, probe.VideoPort, probe.ControlPort)
+		_ = json.NewEncoder(w).Encode(map[string]any{"rtsp": probe})
+	})
+
 	mux.HandleFunc("/api/sunshine/launch", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if !requireLocalAdmin(w, r) {
