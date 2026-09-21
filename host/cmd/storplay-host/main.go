@@ -13,6 +13,7 @@ func main() {
 	stun := flag.String("stun", "", "optional STUN URL, for example stun:stun.example.com:3478")
 	webDir := flag.String("web-dir", "", "optional directory containing the built StorPlay web client")
 	sunshineURL := flag.String("sunshine", "http://127.0.0.1:47989", "Sunshine/GameStream HTTP base URL; empty disables probing")
+	testPattern := flag.Bool("test-pattern", false, "stream an embedded H264 diagnostic frame instead of a real media source")
 	flag.Parse()
 
 	var sunshineClient *sunshine.Client
@@ -22,10 +23,11 @@ func main() {
 	}
 
 	server := signaling.Server{
-		Addr:     *addr,
-		StunURL:  *stun,
-		WebDir:   *webDir,
-		Sunshine: sunshineClient,
+		Addr:        *addr,
+		StunURL:     *stun,
+		WebDir:      *webDir,
+		Sunshine:    sunshineClient,
+		TestPattern: *testPattern,
 	}
 
 	log.Printf("open %s/healthz to verify the host", signaling.DescribeURL(*addr))
