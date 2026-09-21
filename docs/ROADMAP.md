@@ -37,7 +37,9 @@
 
 ## M3 — Sunshine adapter
 
-- [ ] Sunshine host discovery
+- [x] configured Sunshine serverinfo probe
+- [x] parse Sunshine identity/state/ports
+- [ ] LAN Sunshine discovery
 - [ ] pairing/session bootstrap
 - [ ] launch desktop/application
 - [ ] receive video stream
