@@ -8,13 +8,15 @@ The first native StorPlay host is written in Go and uses Pion WebRTC.
 - WebSocket signaling
 - WebRTC offer/answer
 - trickle ICE
+- H.264 + Opus browser media tracks
+- H.264 diagnostic source
 - low-latency unordered input DataChannel
 - browser keyboard/mouse/gamepad protocol parsing
 - explicit input-sink boundary for future OS input injection
 - optional static serving of the built web client
 - Sunshine `/serverinfo` probing and XML parsing
 
-Video/audio are intentionally not wired yet. The next host milestone uses the Sunshine/GameStream session as the media source for WebRTC tracks.
+StorPlay deliberately uses port **48120** by default so it does not collide with Sunshine's default GameStream HTTP/Web UI ports.
 
 ## Run
 
@@ -22,6 +24,12 @@ Video/audio are intentionally not wired yet. The next host milestone uses the Su
 cd host
 go mod tidy
 go run ./cmd/storplay-host
+```
+
+StorPlay UI/API:
+
+```text
+http://localhost:48120
 ```
 
 By default StorPlay probes a Sunshine instance on:
@@ -45,10 +53,10 @@ go run ./cmd/storplay-host -sunshine ""
 Useful local endpoints:
 
 ```text
-GET /healthz
-GET /api/info
-GET /api/sunshine/info
-WS  /ws/session
+GET http://localhost:48120/healthz
+GET http://localhost:48120/api/info
+GET http://localhost:48120/api/sunshine/info
+WS  ws://localhost:48120/ws/session
 ```
 
 Then, in another terminal:
@@ -59,13 +67,7 @@ npm install
 npm run dev
 ```
 
-Open the URL printed by Vite. The browser defaults to:
-
-```text
-ws://<same-host>:47990/ws/session
-```
-
-When the WebRTC connection becomes connected, keyboard/mouse/gamepad input is sent to the host. For now the default sink only logs low-frequency input.
+When the WebRTC connection becomes connected, keyboard/mouse/gamepad input is sent to the host. The current default input sink only logs low-frequency input.
 
 ### Serve a production web build from the host
 
@@ -80,7 +82,7 @@ go run ./cmd/storplay-host -web-dir ../web/dist
 Then open:
 
 ```text
-http://localhost:47990
+http://localhost:48120
 ```
 
 ## Internet mode
