@@ -2,6 +2,7 @@ package sunshine
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"net"
@@ -13,6 +14,7 @@ import (
 
 type MediaProbe struct {
 	State            string    `json:"state"`
+	PingMode         string    `json:"pingMode,omitempty"`
 	AudioPackets     int       `json:"audioPackets"`
 	VideoPackets     int       `json:"videoPackets"`
 	AudioBytes       int64     `json:"audioBytes"`
@@ -40,13 +42,11 @@ func (c *Client) ProbeMedia(ctx context.Context) (MediaProbe, error) {
 	}
 
 	rtsp := c.RTSPStatus()
-	if rtsp == nil || rtsp.State != "setup_complete" {
-		var err error
+	if rtsp == nil || rtsp.State != "setup_complete" || !rtsp.PingPayloadReady {
 		probe, probeErr := c.ProbeRTSP(ctx)
 		rtsp = &probe
-		err = probeErr
-		if err != nil {
-			return MediaProbe{}, fmt.Errorf("RTSP setup is not ready: %w", err)
+		if probeErr != nil {
+			return MediaProbe{}, fmt.Errorf("RTSP setup is not ready: %w", probeErr)
 		}
 	}
 
@@ -87,8 +87,14 @@ func (c *Client) ProbeMedia(ctx context.Context) (MediaProbe, error) {
 		return MediaProbe{}, fmt.Errorf("resolve Sunshine video endpoint: %w", err)
 	}
 
+	pingMode := "legacy"
+	if len(rtsp.audioPingPayload) == 16 && len(rtsp.videoPingPayload) == 16 {
+		pingMode = "sunshine-v2"
+	}
+
 	result := MediaProbe{
 		State:          "starting",
+		PingMode:       pingMode,
 		AudioLocalPort: audioConn.LocalAddr().(*net.UDPAddr).Port,
 		VideoLocalPort: videoConn.LocalAddr().(*net.UDPAddr).Port,
 		StartedAt:      time.Now(),
@@ -100,7 +106,7 @@ func (c *Client) ProbeMedia(ctx context.Context) (MediaProbe, error) {
 		return c.mediaFailure(result, err)
 	}
 
-	sdp := buildDiagnosticSDP(active, rtsp.VideoPort)
+	sdp := buildDiagnosticSDP(active, rtsp.VideoPort, pingMode == "sunshine-v2")
 	announce, err := rtspClient.request(ctx, "ANNOUNCE", "streamid=control/13/0", map[string]string{
 		"Session":      rtsp.SessionID,
 		"Content-type": "application/sdp",
@@ -112,14 +118,15 @@ func (c *Client) ProbeMedia(ctx context.Context) (MediaProbe, error) {
 		return c.mediaFailure(result, fmt.Errorf("ANNOUNCE: RTSP status %d %s", announce.StatusCode, announce.Status))
 	}
 
-	// Sunshine creates the streaming workers during ANNOUNCE. They wait for a
-	// UDP ping from the client before capture/encoding begins. We intentionally
-	// advertise ML feature flags 0 in the diagnostic SDP, which makes the
-	// protocol's legacy four-byte PING valid and keeps this milestone simple.
+	// Sunshine creates the streaming workers during ANNOUNCE. Modern Moonlight
+	// identifies the session using the 16-byte X-SS-Ping-Payload returned by
+	// SETUP followed by a big-endian sequence number. Use that exact format
+	// whenever Sunshine advertised it; keep the legacy 4-byte PING only as a
+	// compatibility fallback for older servers.
 	pingCtx, cancelPings := context.WithCancel(ctx)
 	defer cancelPings()
-	go sendLegacyPings(pingCtx, audioConn, audioRemote)
-	go sendLegacyPings(pingCtx, videoConn, videoRemote)
+	go sendGameStreamPings(pingCtx, audioConn, audioRemote, rtsp.audioPingPayload)
+	go sendGameStreamPings(pingCtx, videoConn, videoRemote, rtsp.videoPingPayload)
 
 	// Give the ping goroutines a chance to establish the return endpoints before
 	// PLAY. Modern Sunshine starts capture from ANNOUNCE, but PLAY is still sent
@@ -143,7 +150,7 @@ func (c *Client) ProbeMedia(ctx context.Context) (MediaProbe, error) {
 	result.State = "receiving"
 	c.setMediaProbe(result)
 
-	const captureWindow = 3500 * time.Millisecond
+	const captureWindow = 8 * time.Second
 	deadline := time.Now().Add(captureWindow)
 	_ = audioConn.SetReadDeadline(deadline)
 	_ = videoConn.SetReadDeadline(deadline)
@@ -229,7 +236,7 @@ func (c *Client) mediaFailure(probe MediaProbe, err error) (MediaProbe, error) {
 	return probe, err
 }
 
-func buildDiagnosticSDP(active *LaunchSession, videoPort int) string {
+func buildDiagnosticSDP(active *LaunchSession, videoPort int, modernPing bool) string {
 	width := active.Width
 	if width <= 0 {
 		width = 1920
@@ -246,6 +253,12 @@ func buildDiagnosticSDP(active *LaunchSession, videoPort int) string {
 		videoPort = 47998
 	}
 
+	mlFeatureFlags := 0
+	if modernPing {
+		// ML_FF_FEC_STATUS | ML_FF_SESSION_ID_V1
+		mlFeatureFlags = 3
+	}
+
 	// These are the minimum GameStream attributes Sunshine requires in
 	// cmd_announce(), with H.264/stereo/no-media-encryption selected for the
 	// first transport diagnostic.
@@ -256,7 +269,7 @@ func buildDiagnosticSDP(active *LaunchSession, videoPort int) string {
 		"a=x-nv-audio.surround.numChannels:2 ",
 		"a=x-nv-audio.surround.channelMask:3 ",
 		"a=x-nv-audio.surround.AudioQuality:0 ",
-		"a=x-nv-general.useReliableUdp:1 ",
+		"a=x-nv-general.useReliableUdp:13 ",
 		"a=x-nv-video[0].packetSize:1024 ",
 		fmt.Sprintf("a=x-nv-video[0].clientViewportWd:%d ", width),
 		fmt.Sprintf("a=x-nv-video[0].clientViewportHt:%d ", height),
@@ -267,7 +280,7 @@ func buildDiagnosticSDP(active *LaunchSession, videoPort int) string {
 		"a=x-nv-vqos[0].bitStreamFormat:0 ",
 		"a=x-nv-vqos[0].qosTrafficType:0 ",
 		"a=x-nv-aqos.qosTrafficType:0 ",
-		"a=x-ml-general.featureFlags:0 ",
+		fmt.Sprintf("a=x-ml-general.featureFlags:%d ", mlFeatureFlags),
 		"a=x-ml-video.configuredBitrateKbps:20000 ",
 		"a=x-ss-general.encryptionEnabled:0 ",
 		"t=0 0",
@@ -276,11 +289,21 @@ func buildDiagnosticSDP(active *LaunchSession, videoPort int) string {
 	return strings.Join(lines, "\r\n") + "\r\n"
 }
 
-func sendLegacyPings(ctx context.Context, conn *net.UDPConn, remote *net.UDPAddr) {
+func sendGameStreamPings(ctx context.Context, conn *net.UDPConn, remote *net.UDPAddr, payload string) {
 	ticker := time.NewTicker(250 * time.Millisecond)
 	defer ticker.Stop()
 
+	var sequence uint32
 	send := func() {
+		if len(payload) == 16 {
+			sequence++
+			packet := make([]byte, 20)
+			copy(packet[:16], []byte(payload))
+			binary.BigEndian.PutUint32(packet[16:], sequence)
+			_, _ = conn.WriteToUDP(packet, remote)
+			return
+		}
+
 		_, _ = conn.WriteToUDP([]byte{'P', 'I', 'N', 'G'}, remote)
 	}
 
