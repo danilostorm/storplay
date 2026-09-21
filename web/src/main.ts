@@ -96,11 +96,21 @@ async function refreshSunshine(): Promise<void> {
       `${data.server.hostname} · Sunshine ${data.server.appVersion} · ${data.server.state}`;
 
     const state = data.pairing?.state ?? (data.server.pairStatus === 1 ? 'paired' : 'unpaired');
-    renderPairingState(state, data.pairing?.pin, data.pairing?.error);
 
-    if (state === 'paired') {
-      await loadApps();
+    if (state === 'waiting_for_pin' || state === 'pairing') {
+      renderPairingState(state, data.pairing?.pin, data.pairing?.error);
+      return;
+    }
+
+    // The authenticated app list is the real proof that Sunshine still trusts
+    // StorPlay's persisted client certificate. PairStatus is legacy and can be
+    // 0 even after a successful pairing on some Sunshine versions.
+    const authenticated = await loadApps(state !== 'paired');
+    if (authenticated) {
+      renderPairingState('paired');
       await loadActiveSession();
+    } else {
+      renderPairingState(state, data.pairing?.pin, data.pairing?.error);
     }
   } catch (error) {
     sunshineSummary.textContent = `Unable to query Sunshine: ${String(error)}`;
@@ -196,7 +206,7 @@ function stopPairingPoll(): void {
   }
 }
 
-async function loadApps(): Promise<void> {
+async function loadApps(quiet = false): Promise<boolean> {
   try {
     const response = await fetch(apiURL('/api/sunshine/apps'));
     const data = (await response.json()) as { apps?: SunshineApp[]; error?: string };
@@ -218,9 +228,14 @@ async function loadApps(): Promise<void> {
       appsList.appendChild(button);
     }
     appsPanel.hidden = false;
+    return true;
   } catch (error) {
-    pairError.textContent = String(error);
-    pairError.hidden = false;
+    appsPanel.hidden = true;
+    if (!quiet) {
+      pairError.textContent = String(error);
+      pairError.hidden = false;
+    }
+    return false;
   }
 }
 
