@@ -187,6 +187,46 @@ func (s Server) Handler() http.Handler {
 		_ = json.NewEncoder(w).Encode(map[string]any{"rtsp": probe})
 	})
 
+	mux.HandleFunc("/api/sunshine/media/status", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if s.Sunshine == nil {
+			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "Sunshine adapter is disabled"})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"media": s.Sunshine.MediaStatus()})
+	})
+
+	mux.HandleFunc("/api/sunshine/media/probe", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if !requireLocalAdmin(w, r) {
+			return
+		}
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "POST required"})
+			return
+		}
+		if s.Sunshine == nil {
+			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "Sunshine adapter is disabled"})
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+		defer cancel()
+		probe, err := s.Sunshine.ProbeMedia(ctx)
+		if err != nil {
+			w.WriteHeader(http.StatusBadGateway)
+			_ = json.NewEncoder(w).Encode(map[string]any{"media": probe, "error": err.Error()})
+			return
+		}
+
+		log.Printf("sunshine: media UDP packets audio=%d/%dB video=%d/%dB",
+			probe.AudioPackets, probe.AudioBytes, probe.VideoPackets, probe.VideoBytes)
+		_ = json.NewEncoder(w).Encode(map[string]any{"media": probe})
+	})
+
 	mux.HandleFunc("/api/sunshine/launch", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if !requireLocalAdmin(w, r) {
