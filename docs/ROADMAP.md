@@ -30,6 +30,10 @@
 - [x] WebRTC offer/answer signaling
 - [x] ICE candidate exchange
 - [x] host-created low-latency input DataChannel
+- [x] negotiate H.264 video + Opus audio WebRTC tracks
+- [x] encoded-media source/sink boundary
+- [x] H.264 diagnostic source for browser-path validation
+- [x] RTCP PLI/FIR keyframe request hook
 - [ ] Windows keyboard/mouse input injection
 - [ ] Windows virtual gamepad input
 - [ ] LAN session discovery
@@ -42,10 +46,11 @@
 - [ ] LAN Sunshine discovery
 - [ ] pairing/session bootstrap
 - [ ] launch desktop/application
-- [ ] receive video stream
-- [ ] receive audio stream
-- [ ] forward compatible encoded media into WebRTC
-- [ ] translate browser input back to the host
+- [ ] receive H.264 access units from GameStream
+- [ ] receive Opus packets from GameStream
+- [ ] feed encoded H.264/Opus into StorPlay media relay
+- [ ] wire PLI/FIR to Sunshine IDR request
+- [ ] translate browser input back to the GameStream host
 - [ ] 1080p60 end-to-end test
 
 ## M4 — Sharing
