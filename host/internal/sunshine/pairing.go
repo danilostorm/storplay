@@ -391,6 +391,11 @@ func (c *Client) AppList(ctx context.Context) ([]App, error) {
 		return nil, fmt.Errorf("Sunshine applist status_code=%d HTTP=%d", parsed.StatusCode, resp.StatusCode)
 	}
 
+	// A successful authenticated HTTPS /applist request proves Sunshine accepted
+	// StorPlay's persisted client certificate. This is a stronger signal than
+	// the legacy PairStatus field returned by plaintext /serverinfo.
+	c.setPairState(PairingStatus{State: "paired"})
+
 	apps := make([]App, 0, len(parsed.Apps))
 	for _, item := range parsed.Apps {
 		if item.ID == 0 || strings.TrimSpace(item.Title) == "" {
