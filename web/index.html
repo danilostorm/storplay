@@ -17,6 +17,27 @@
         <span id="status" class="status">Disconnected</span>
       </header>
 
+      <section class="sunshine-card">
+        <div>
+          <p class="eyebrow">Streaming backend</p>
+          <h2>Sunshine</h2>
+          <p id="sunshine-summary" class="muted">Checking local Sunshine…</p>
+          <p id="pair-help" class="pair-help" hidden>
+            Enter PIN <strong id="pair-pin">----</strong> in the Sunshine web UI at
+            <a href="https://localhost:47990" target="_blank" rel="noreferrer">https://localhost:47990</a>.
+          </p>
+          <p id="pair-error" class="pair-error" hidden></p>
+        </div>
+        <div class="sunshine-actions">
+          <button id="sunshine-refresh">Refresh</button>
+          <button id="sunshine-pair" disabled>Pair</button>
+        </div>
+        <div id="apps-panel" class="apps-panel" hidden>
+          <strong>Apps exposed by Sunshine</strong>
+          <div id="apps-list" class="apps-list"></div>
+        </div>
+      </section>
+
       <section class="player-shell">
         <video id="player" autoplay playsinline></video>
         <div id="empty-state" class="empty-state">
