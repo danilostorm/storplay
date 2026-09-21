@@ -78,7 +78,59 @@ func (s Server) Handler() http.Handler {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"available": true,
 			"server":    info,
+			"pairing":   s.Sunshine.PairingStatus(),
 		})
+	})
+
+	mux.HandleFunc("/api/sunshine/pair/start", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "POST required"})
+			return
+		}
+		if s.Sunshine == nil {
+			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "Sunshine adapter is disabled"})
+			return
+		}
+
+		status, err := s.Sunshine.StartPairing()
+		if err != nil {
+			w.WriteHeader(http.StatusBadGateway)
+			_ = json.NewEncoder(w).Encode(map[string]any{"state": "error", "error": err.Error()})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(status)
+	})
+
+	mux.HandleFunc("/api/sunshine/pair/status", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if s.Sunshine == nil {
+			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(map[string]any{"state": "error", "error": "Sunshine adapter is disabled"})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(s.Sunshine.PairingStatus())
+	})
+
+	mux.HandleFunc("/api/sunshine/apps", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if s.Sunshine == nil {
+			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "Sunshine adapter is disabled"})
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(r.Context(), 6*time.Second)
+		defer cancel()
+		apps, err := s.Sunshine.AppList(ctx)
+		if err != nil {
+			w.WriteHeader(http.StatusBadGateway)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": err.Error()})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"apps": apps})
 	})
 
 	upgrader := websocket.Upgrader{
