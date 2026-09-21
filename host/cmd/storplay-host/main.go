@@ -18,8 +18,12 @@ func main() {
 
 	var sunshineClient *sunshine.Client
 	if *sunshineURL != "" {
-		sunshineClient = sunshine.New(*sunshineURL, sunshine.NewUniqueID())
-		log.Printf("Sunshine adapter: probing %s on demand", *sunshineURL)
+		identity, err := sunshine.LoadOrCreateIdentity()
+		if err != nil {
+			log.Fatalf("Sunshine identity: %v", err)
+		}
+		sunshineClient = sunshine.NewWithIdentity(*sunshineURL, identity)
+		log.Printf("Sunshine adapter: identity=%s probe=%s", identity.UniqueID, *sunshineURL)
 	}
 
 	server := signaling.Server{
