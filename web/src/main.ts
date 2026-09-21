@@ -45,12 +45,14 @@ interface RTSPProbe {
   controlPort?: number;
   codecs?: string[];
   featureFlags?: string;
+  pingPayloadReady: boolean;
   probedAt?: string;
   error?: string;
 }
 
 interface MediaProbe {
   state: 'starting' | 'receiving' | 'packets_received' | 'error';
+  pingMode?: string;
   audioPackets: number;
   videoPackets: number;
   audioBytes: number;
@@ -441,6 +443,7 @@ function renderRTSP(rtsp: RTSPProbe): void {
     rtsp.controlPort ? `Control: ${rtsp.controlPort}` : null,
     rtsp.codecs?.length ? `Codecs: ${rtsp.codecs.join(', ')}` : null,
     rtsp.featureFlags ? `Sunshine flags: ${rtsp.featureFlags}` : null,
+    rtsp.pingPayloadReady ? 'Session ping: v2 ready' : 'Session ping: legacy fallback',
   ].filter((value): value is string => Boolean(value));
 
   rtspDetails.replaceChildren();
@@ -464,6 +467,7 @@ function renderMediaProbe(media: MediaProbe): void {
   }
 
   const details = [
+    media.pingMode ? `Ping mode: ${media.pingMode}` : null,
     `Audio: ${media.audioPackets} packets / ${formatBytes(media.audioBytes)}`,
     `Video: ${media.videoPackets} packets / ${formatBytes(media.videoBytes)}`,
     media.firstAudioPacketBytes ? `First audio packet: ${media.firstAudioPacketBytes} B` : null,
