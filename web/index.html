@@ -40,12 +40,21 @@
         </div>
 
         <div id="launch-panel" class="launch-panel" hidden>
-          <div>
+          <div class="launch-main">
             <strong id="launch-title">GameStream session</strong>
             <p id="launch-summary" class="muted small"></p>
             <code id="launch-url"></code>
+
+            <div id="rtsp-panel" class="rtsp-panel" hidden>
+              <strong>RTSP / GameStream handshake</strong>
+              <p id="rtsp-summary" class="muted small"></p>
+              <div id="rtsp-details" class="rtsp-details"></div>
+            </div>
           </div>
-          <button id="launch-cancel">Stop Sunshine session</button>
+          <div class="launch-actions">
+            <button id="rtsp-probe">Probe RTSP</button>
+            <button id="launch-cancel">Stop Sunshine session</button>
+          </div>
         </div>
       </section>
 
