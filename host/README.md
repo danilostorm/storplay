@@ -12,8 +12,9 @@ The first native StorPlay host is written in Go and uses Pion WebRTC.
 - browser keyboard/mouse/gamepad protocol parsing
 - explicit input-sink boundary for future OS input injection
 - optional static serving of the built web client
+- Sunshine `/serverinfo` probing and XML parsing
 
-Video/audio are intentionally not wired yet. The next host milestone adds the Sunshine/GameStream adapter and media tracks.
+Video/audio are intentionally not wired yet. The next host milestone uses the Sunshine/GameStream session as the media source for WebRTC tracks.
 
 ## Run
 
@@ -21,6 +22,33 @@ Video/audio are intentionally not wired yet. The next host milestone adds the Su
 cd host
 go mod tidy
 go run ./cmd/storplay-host
+```
+
+By default StorPlay probes a Sunshine instance on:
+
+```text
+http://127.0.0.1:47989
+```
+
+You can point it at another host:
+
+```bash
+go run ./cmd/storplay-host -sunshine http://192.168.1.50:47989
+```
+
+Or disable Sunshine probing:
+
+```bash
+go run ./cmd/storplay-host -sunshine ""
+```
+
+Useful local endpoints:
+
+```text
+GET /healthz
+GET /api/info
+GET /api/sunshine/info
+WS  /ws/session
 ```
 
 Then, in another terminal:
